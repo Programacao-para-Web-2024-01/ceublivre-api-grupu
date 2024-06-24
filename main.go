@@ -12,69 +12,69 @@ import (
 	"time"
 )
 
-type Review struct {
-	ProductID  string    `json:"product_id"`
-	UserID     string    `json:"user_id"`
-	Rating     int       `json:"rating"`
-	Comment    string    `json:"comment"`
-	Comments   []Comment `json:"comments,omitempty"`
-	Flagged    bool      `json:"flagged"`
-	Moderated  bool      `json:"moderated"`
+type Avaliacao struct {
+	IDProduto  string    `json:"id_produto"`
+	IDUsuario  string    `json:"id_usuario"`
+	Nota       int       `json:"nota"`
+	Comentario string    `json:"comentario"`
+	Comentarios   []Comentario `json:"comentarios,omitempty"`
+	Marcado    bool      `json:"marcado"`
+	Moderado  bool      `json:"moderado"`
 }
 
-type Comment struct {
-	UserID    string `json:"user_id"`
-	Text      string `json:"text"`
+type Comentario struct {
+	IDUsuario string `json:"id_usuario"`
+	Texto     string `json:"texto"`
 	Timestamp int64  `json:"timestamp"`
-	Flagged   bool   `json:"flagged"`
-	Moderated bool   `json:"moderated"`
+	Marcado   bool   `json:"marcado"`
+	Moderado  bool   `json:"moderado"`
 }
 
-type Question struct {
-	ProductID string   `json:"product_id"`
-	UserID    string   `json:"user_id"`
-	SellerID  string   `json:"seller_id"`
-	Query     string   `json:"query"`
+type Pergunta struct {
+	IDProduto string   `json:"id_produto"`
+	IDUsuario string   `json:"id_usuario"`
+	IDVendedor string   `json:"id_vendedor"`
+	Duvida    string   `json:"duvida"`
 	Timestamp int64    `json:"timestamp"`
-	Answers   []Answer `json:"answers,omitempty"`
-	Flagged   bool     `json:"flagged"`
-	Moderated bool     `json:"moderated"`
+	Respostas []Resposta `json:"respostas,omitempty"`
+	Marcado   bool     `json:"marcado"`
+	Moderado  bool     `json:"moderado"`
 }
 
-type Answer struct {
-	SellerID  string `json:"seller_id"`
-	Response  string `json:"response"`
-	Timestamp int64  `json:"timestamp"`
-	Flagged   bool   `json:"flagged"`
-	Moderated bool   `json:"moderated"`
+type Resposta struct {
+	IDVendedor string `json:"id_vendedor"`
+	Resposta   string `json:"resposta"`
+	Timestamp  int64  `json:"timestamp"`
+	Marcado    bool   `json:"marcado"`
+	Moderado   bool   `json:"moderado"`
 }
 
-type ProductReviews struct {
-	Reviews []Review
-	lock    sync.Mutex
+type AvaliacoesProdutos struct {
+	Avaliacoes []Avaliacao
+	lock       sync.Mutex
 }
 
-type ProductQuestions struct {
-	Questions []Question
+type PerguntasProdutos struct {
+	Perguntas []Pergunta
 	lock      sync.Mutex
 }
 
-var bannedWords []string
+var palavrasBanidas []string
 var lock sync.Mutex
 
-func loadBannedWords(filePath string) error {
+func carregarPalavrasBanidas(caminhoArquivo string) error {
 	lock.Lock()
 	defer lock.Unlock()
 
-	file, err := os.Open(filePath)
+	arquivo, err := os.Open(caminhoArquivo)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer arquivo.Close()
 
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(arquivo)
 	for scanner.Scan() {
-		bannedWords = append(bannedWords, strings.ToLower(scanner.Text()))
+		palavrasBanidas = append(palavrasBanidas, strings.ToLower(scanner.Text()))
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -83,112 +83,112 @@ func loadBannedWords(filePath string) error {
 	return nil
 }
 
-func containsBannedWords(text string) bool {
+func contemPalavrasBanidas(texto string) bool {
 	lock.Lock()
 	defer lock.Unlock()
 
-	lowerText := strings.ToLower(text)
-	for _, word := range bannedWords {
-		if strings.Contains(lowerText, word) {
+	textoMinusculo := strings.ToLower(texto)
+	for _, palavra := range palavrasBanidas {
+		if strings.Contains(textoMinusculo, palavra) {
 			return true
 		}
 	}
 	return false
 }
 
-func (pr *ProductReviews) AddReview(review Review) error {
-	if containsBannedWords(review.Comment) {
-		return fmt.Errorf("the review contains banned words")
+func (ap *AvaliacoesProdutos) AdicionarAvaliacao(avaliacao Avaliacao) error {
+	if contemPalavrasBanidas(avaliacao.Comentario) {
+		return fmt.Errorf("a avaliação contém palavras banidas")
 	}
-	pr.lock.Lock()
-	defer pr.lock.Unlock()
-	pr.Reviews = append(pr.Reviews, review)
+	ap.lock.Lock()
+	defer ap.lock.Unlock()
+	ap.Avaliacoes = append(ap.Avaliacoes, avaliacao)
 	return nil
 }
 
-func (pr *ProductReviews) AddComment(reviewID, userID, text string) error {
-	if containsBannedWords(text) {
-		return fmt.Errorf("the comment contains banned words")
+func (ap *AvaliacoesProdutos) AdicionarComentario(idAvaliacao, idUsuario, texto string) error {
+	if contemPalavrasBanidas(texto) {
+		return fmt.Errorf("o comentário contém palavras banidas")
 	}
-	pr.lock.Lock()
-	defer pr.lock.Unlock()
-	for i, review := range pr.Reviews {
-		if review.ProductID == reviewID {
-			review.Comments = append(review.Comments, Comment{
-				UserID:    userID,
-				Text:      text,
+	ap.lock.Lock()
+	defer ap.lock.Unlock()
+	for i, avaliacao := range ap.Avaliacoes {
+		if avaliacao.IDProduto == idAvaliacao {
+			avaliacao.Comentarios = append(avaliacao.Comentarios, Comentario{
+				IDUsuario: idUsuario,
+				Texto:     texto,
 				Timestamp: time.Now().Unix(),
 			})
-			pr.Reviews[i] = review
+			ap.Avaliacoes[i] = avaliacao
 			break
 		}
 	}
 	return nil
 }
 
-func (pq *ProductQuestions) AddQuestion(question Question) error {
-	if containsBannedWords(question.Query) {
-		return fmt.Errorf("the question contains banned words")
+func (pp *PerguntasProdutos) AdicionarPergunta(pergunta Pergunta) error {
+	if contemPalavrasBanidas(pergunta.Duvida) {
+		return fmt.Errorf("a pergunta contém palavras banidas")
 	}
-	pq.lock.Lock()
-	defer pq.lock.Unlock()
-	pq.Questions = append(pq.Questions, question)
+	pp.lock.Lock()
+	defer pp.lock.Unlock()
+	pp.Perguntas = append(pp.Perguntas, pergunta)
 	return nil
 }
 
-func (pq *ProductQuestions) AddAnswer(productID, userID, query, sellerID, response string) error {
-	if containsBannedWords(response) {
-		return fmt.Errorf("the answer contains banned words")
+func (pp *PerguntasProdutos) AdicionarResposta(idProduto, idUsuario, duvida, idVendedor, resposta string) error {
+	if contemPalavrasBanidas(resposta) {
+		return fmt.Errorf("a resposta contém palavras banidas")
 	}
-	pq.lock.Lock()
-	defer pq.lock.Unlock()
-	for i, question := range pq.Questions {
-		if question.ProductID == productID && question.UserID == userID && question.Query == query && question.SellerID == sellerID {
-			question.Answers = append(question.Answers, Answer{
-				SellerID:  sellerID,
-				Response:  response,
-				Timestamp: time.Now().Unix(),
+	pp.lock.Lock()
+	defer pp.lock.Unlock()
+	for i, pergunta := range pp.Perguntas {
+		if pergunta.IDProduto == idProduto && pergunta.IDUsuario == idUsuario && pergunta.Duvida == duvida && pergunta.IDVendedor == idVendedor {
+			pergunta.Respostas = append(pergunta.Respostas, Resposta{
+				IDVendedor: idVendedor,
+				Resposta:   resposta,
+				Timestamp:  time.Now().Unix(),
 			})
-			pq.Questions[i] = question
+			pp.Perguntas[i] = pergunta
 			break
 		}
 	}
 	return nil
 }
 
-func (pr *ProductReviews) FlagReview(productID, userID string) error {
-	pr.lock.Lock()
-	defer pr.lock.Unlock()
-	for i, review := range pr.Reviews {
-		if review.ProductID == productID && review.UserID == userID {
-			pr.Reviews[i].Flagged = true
+func (ap *AvaliacoesProdutos) MarcarAvaliacao(idProduto, idUsuario string) error {
+	ap.lock.Lock()
+	defer ap.lock.Unlock()
+	for i, avaliacao := range ap.Avaliacoes {
+		if avaliacao.IDProduto == idProduto && avaliacao.IDUsuario == idUsuario {
+			ap.Avaliacoes[i].Marcado = true
 			break
 		}
 	}
 	return nil
 }
 
-func (pq *ProductQuestions) FlagQuestion(productID, userID string) error {
-	pq.lock.Lock()
-	defer pq.lock.Unlock()
-	for i, question := range pq.Questions {
-		if question.ProductID == productID && question.UserID == userID {
-			pq.Questions[i].Flagged = true
+func (pp *PerguntasProdutos) MarcarPergunta(idProduto, idUsuario string) error {
+	pp.lock.Lock()
+	defer pp.lock.Unlock()
+	for i, pergunta := range pp.Perguntas {
+		if pergunta.IDProduto == idProduto && pergunta.IDUsuario == idUsuario {
+			pp.Perguntas[i].Marcado = true
 			break
 		}
 	}
 	return nil
 }
 
-func (pr *ProductReviews) ModerateReview(productID, userID string, action string) error {
-	pr.lock.Lock()
-	defer pr.lock.Unlock()
-	for i, review := range pr.Reviews {
-		if review.ProductID == productID && review.UserID == userID {
-			if action == "remove" {
-				pr.Reviews = append(pr.Reviews[:i], pr.Reviews[i+1:]...)
-			} else if action == "approve" {
-				pr.Reviews[i].Moderated = true
+func (ap *AvaliacoesProdutos) ModerarAvaliacao(idProduto, idUsuario, acao string) error {
+	ap.lock.Lock()
+	defer ap.lock.Unlock()
+	for i, avaliacao := range ap.Avaliacoes {
+		if avaliacao.IDProduto == idProduto && avaliacao.IDUsuario == idUsuario {
+			if acao == "remover" {
+				ap.Avaliacoes = append(ap.Avaliacoes[:i], ap.Avaliacoes[i+1:]...)
+			} else if acao == "aprovar" {
+				ap.Avaliacoes[i].Moderado = true
 			}
 			break
 		}
@@ -196,15 +196,15 @@ func (pr *ProductReviews) ModerateReview(productID, userID string, action string
 	return nil
 }
 
-func (pq *ProductQuestions) ModerateQuestion(productID, userID string, action string) error {
-	pq.lock.Lock()
-	defer pq.lock.Unlock()
-	for i, question := range pq.Questions {
-		if question.ProductID == productID && question.UserID == userID {
-			if action == "remove" {
-				pq.Questions = append(pq.Questions[:i], pq.Questions[i+1:]...)
-			} else if action == "approve" {
-				pq.Questions[i].Moderated = true
+func (pp *PerguntasProdutos) ModerarPergunta(idProduto, idUsuario, acao string) error {
+	pp.lock.Lock()
+	defer pp.lock.Unlock()
+	for i, pergunta := range pp.Perguntas {
+		if pergunta.IDProduto == idProduto && pergunta.IDUsuario == idUsuario {
+			if acao == "remover" {
+				pp.Perguntas = append(pp.Perguntas[:i], pp.Perguntas[i+1:]...)
+			} else if acao == "aprovar" {
+				pp.Perguntas[i].Moderado = true
 			}
 			break
 		}
@@ -212,210 +212,210 @@ func (pq *ProductQuestions) ModerateQuestion(productID, userID string, action st
 	return nil
 }
 
-func (pr *ProductReviews) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (ap *AvaliacoesProdutos) ServirHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "POST":
-		var review Review
-		if err := json.NewDecoder(r.Body).Decode(&review); err != nil {
+		var avaliacao Avaliacao
+		if err := json.NewDecoder(r.Body).Decode(&avaliacao); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if err := pr.AddReview(review); err != nil {
+		if err := ap.AdicionarAvaliacao(avaliacao); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintln(w, "Review added")
+		fmt.Fprintln(w, "Avaliação adicionada")
 	case "GET":
-		pr.lock.Lock()
-		defer pr.lock.Unlock()
-		reviewsJSON, err := json.Marshal(pr.Reviews)
+		ap.lock.Lock()
+		defer ap.lock.Unlock()
+		avaliacoesJSON, err := json.Marshal(ap.Avaliacoes)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(reviewsJSON)
+		w.Write(avaliacoesJSON)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		fmt.Fprintln(w, "Method not allowed")
+		fmt.Fprintln(w, "Método não permitido")
 	}
 }
 
-func (pr *ProductReviews) ServeModerationHTTP(w http.ResponseWriter, r *http.Request) {
+func (ap *AvaliacoesProdutos) ServirModeracaoHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		pr.lock.Lock()
-		defer pr.lock.Unlock()
-		flaggedReviews := []Review{}
-		for _, review := range pr.Reviews {
-			if review.Flagged && !review.Moderated {
-				flaggedReviews = append(flaggedReviews, review)
+		ap.lock.Lock()
+		defer ap.lock.Unlock()
+		avaliacoesMarcadas := []Avaliacao{}
+		for _, avaliacao := range ap.Avaliacoes {
+			if avaliacao.Marcado && !avaliacao.Moderado {
+				avaliacoesMarcadas = append(avaliacoesMarcadas, avaliacao)
 			}
 		}
-		reviewsJSON, err := json.Marshal(flaggedReviews)
+		avaliacoesJSON, err := json.Marshal(avaliacoesMarcadas)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(reviewsJSON)
+		w.Write(avaliacoesJSON)
 	case "POST":
-		var data struct {
-			ProductID string `json:"product_id"`
-			UserID    string `json:"user_id"`
-			Action    string `json:"action"` // "approve" or "remove"
+		var dados struct {
+			IDProduto string `json:"id_produto"`
+			IDUsuario string `json:"id_usuario"`
+			Acao      string `json:"acao"` // "aprovar" ou "remover"
 		}
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		if err := json.NewDecoder(r.Body).Decode(&dados); err != nil {
+			http.Error(w, "Corpo da requisição inválido", http.StatusBadRequest)
 			return
 		}
-		if err := pr.ModerateReview(data.ProductID, data.UserID, data.Action); err != nil {
+		if err := ap.ModerarAvaliacao(dados.IDProduto, dados.IDUsuario, dados.Acao); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Review moderated")
+		fmt.Fprintln(w, "Avaliação moderada")
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		fmt.Fprintln(w, "Method not allowed")
+		fmt.Fprintln(w, "Método não permitido")
 	}
 }
 
-func (pq *ProductQuestions) ServeModerationHTTP(w http.ResponseWriter, r *http.Request) {
+func (pp *PerguntasProdutos) ServirModeracaoHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
-		pq.lock.Lock()
-		defer pq.lock.Unlock()
-		flaggedQuestions := []Question{}
-		for _, question := range pq.Questions {
-			if question.Flagged && !question.Moderated {
-				flaggedQuestions = append(flaggedQuestions, question)
+		pp.lock.Lock()
+		defer pp.lock.Unlock()
+		perguntasMarcadas := []Pergunta{}
+		for _, pergunta := range pp.Perguntas {
+			if pergunta.Marcado && !pergunta.Moderado {
+				perguntasMarcadas = append(perguntasMarcadas, pergunta)
 			}
 		}
-		questionsJSON, err := json.Marshal(flaggedQuestions)
+		perguntasJSON, err := json.Marshal(perguntasMarcadas)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(questionsJSON)
+		w.Write(perguntasJSON)
 	case "POST":
-		var data struct {
-			ProductID string `json:"product_id"`
-			UserID    string `json:"user_id"`
-			Action    string `json:"action"` // "approve" or "remove"
+		var dados struct {
+			IDProduto string `json:"id_produto"`
+			IDUsuario string `json:"id_usuario"`
+			Acao      string `json:"acao"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		if err := json.NewDecoder(r.Body).Decode(&dados); err != nil {
+			http.Error(w, "Corpo da requisição inválido", http.StatusBadRequest)
 			return
 		}
-		if err := pq.ModerateQuestion(data.ProductID, data.UserID, data.Action); err != nil {
+		if err := pp.ModerarPergunta(dados.IDProduto, dados.IDUsuario, dados.Acao); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Question moderated")
+		fmt.Fprintln(w, "Pergunta moderada")
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		fmt.Fprintln(w, "Method not allowed")
+		fmt.Fprintln(w, "Método não permitido")
 	}
 }
 
 func main() {
-	if err := loadBannedWords("palavras.txt"); err != nil {
-		log.Fatalf("Failed to load banned words: %v", err)
+	if err := carregarPalavrasBanidas("palavras.txt"); err != nil {
+		log.Fatalf("Falha ao carregar palavras banidas: %v", err)
 	}
 
-	var reviews ProductReviews
-	var questions ProductQuestions
+	var avaliacoes AvaliacoesProdutos
+	var perguntas PerguntasProdutos
 
-	http.HandleFunc("/reviews", reviews.ServeHTTP)
-	http.HandleFunc("/questions/add", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/avaliacoes", avaliacoes.ServirHTTP)
+	http.HandleFunc("/perguntas/adicionar", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 			return
 		}
-		var question Question
-		if err := json.NewDecoder(r.Body).Decode(&question); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		var pergunta Pergunta
+		if err := json.NewDecoder(r.Body).Decode(&pergunta); err != nil {
+			http.Error(w, "Corpo da requisição inválido", http.StatusBadRequest)
 			return
 		}
-		if err := questions.AddQuestion(question); err != nil {
+		if err := perguntas.AdicionarPergunta(pergunta); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintln(w, "Question added")
+		fmt.Fprintln(w, "Pergunta adicionada")
 	})
 
-	http.HandleFunc("/questions/answer", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/perguntas/responder", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 			return
 		}
-		var data struct {
-			ProductID string `json:"product_id"`
-			UserID    string `json:"user_id"`
-			Query     string `json:"query"`
-			SellerID  string `json:"seller_id"`
-			Response  string `json:"response"`
+		var dados struct {
+			IDProduto  string `json:"id_produto"`
+			IDUsuario  string `json:"id_usuario"`
+			Duvida     string `json:"duvida"`
+			IDVendedor string `json:"id_vendedor"`
+			Resposta   string `json:"resposta"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		if err := json.NewDecoder(r.Body).Decode(&dados); err != nil {
+			http.Error(w, "Corpo da requisição inválido", http.StatusBadRequest)
 			return
 		}
-		if err := questions.AddAnswer(data.ProductID, data.UserID, data.Query, data.SellerID, data.Response); err != nil {
+		if err := perguntas.AdicionarResposta(dados.IDProduto, dados.IDUsuario, dados.Duvida, dados.IDVendedor, dados.Resposta); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
-		fmt.Fprintln(w, "Answer added")
+		fmt.Fprintln(w, "Resposta adicionada")
 	})
 
-	http.HandleFunc("/reviews/moderate", reviews.ServeModerationHTTP)
-	http.HandleFunc("/questions/moderate", questions.ServeModerationHTTP)
+	http.HandleFunc("/avaliacoes/moderar", avaliacoes.ServirModeracaoHTTP)
+	http.HandleFunc("/perguntas/moderar", perguntas.ServirModeracaoHTTP)
 
-	http.HandleFunc("/reviews/flag", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/avaliacoes/marcar", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 			return
 		}
-		var data struct {
-			ProductID string `json:"product_id"`
-			UserID    string `json:"user_id"`
+		var dados struct {
+			IDProduto string `json:"id_produto"`
+			IDUsuario string `json:"id_usuario"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		if err := json.NewDecoder(r.Body).Decode(&dados); err != nil {
+			http.Error(w, "Corpo da requisição inválido", http.StatusBadRequest)
 			return
 		}
-		if err := reviews.FlagReview(data.ProductID, data.UserID); err != nil {
+		if err := avaliacoes.MarcarAvaliacao(dados.IDProduto, dados.IDUsuario); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Review flagged")
+		fmt.Fprintln(w, "Avaliação marcada")
 	})
 
-	http.HandleFunc("/questions/flag", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/perguntas/marcar", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
 			return
 		}
-		var data struct {
-			ProductID string `json:"product_id"`
-			UserID    string `json:"user_id"`
+		var dados struct {
+			IDProduto string `json:"id_produto"`
+			IDUsuario string `json:"id_usuario"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		if err := json.NewDecoder(r.Body).Decode(&dados); err != nil {
+			http.Error(w, "Corpo da requisição inválido", http.StatusBadRequest)
 			return
 		}
-		if err := questions.FlagQuestion(data.ProductID, data.UserID); err != nil {
+		if err := perguntas.MarcarPergunta(dados.IDProduto, dados.IDUsuario); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Question flagged")
+		fmt.Fprintln(w, "Pergunta marcada")
 	})
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
