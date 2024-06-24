@@ -13,13 +13,13 @@ import (
 )
 
 type Avaliacao struct {
-	IDProduto  string    `json:"id_produto"`
-	IDUsuario  string    `json:"id_usuario"`
-	Nota       int       `json:"nota"`
-	Comentario string    `json:"comentario"`
-	Comentarios   []Comentario `json:"comentarios,omitempty"`
-	Marcado    bool      `json:"marcado"`
-	Moderado  bool      `json:"moderado"`
+	IDProduto   string       `json:"id_produto"`
+	IDUsuario   string       `json:"id_usuario"`
+	Nota        int          `json:"nota"`
+	Comentario  string       `json:"comentario"`
+	Comentarios []Comentario `json:"comentarios,omitempty"`
+	Marcado     bool         `json:"marcado"`
+	Moderado    bool         `json:"moderado"`
 }
 
 type Comentario struct {
@@ -31,14 +31,14 @@ type Comentario struct {
 }
 
 type Pergunta struct {
-	IDProduto string   `json:"id_produto"`
-	IDUsuario string   `json:"id_usuario"`
-	IDVendedor string   `json:"id_vendedor"`
-	Duvida    string   `json:"duvida"`
-	Timestamp int64    `json:"timestamp"`
-	Respostas []Resposta `json:"respostas,omitempty"`
-	Marcado   bool     `json:"marcado"`
-	Moderado  bool     `json:"moderado"`
+	IDProduto  string     `json:"id_produto"`
+	IDUsuario  string     `json:"id_usuario"`
+	IDVendedor string     `json:"id_vendedor"`
+	Duvida     string     `json:"duvida"`
+	Timestamp  int64      `json:"timestamp"`
+	Respostas  []Resposta `json:"respostas,omitempty"`
+	Marcado    bool       `json:"marcado"`
+	Moderado   bool       `json:"moderado"`
 }
 
 type Resposta struct {
@@ -106,14 +106,14 @@ func (ap *AvaliacoesProdutos) AdicionarAvaliacao(avaliacao Avaliacao) error {
 	return nil
 }
 
-func (ap *AvaliacoesProdutos) AdicionarComentario(idAvaliacao, idUsuario, texto string) error {
+func (ap *AvaliacoesProdutos) AdicionarComentario(idProduto, idUsuario, texto string) error {
 	if contemPalavrasBanidas(texto) {
 		return fmt.Errorf("o comentário contém palavras banidas")
 	}
 	ap.lock.Lock()
 	defer ap.lock.Unlock()
 	for i, avaliacao := range ap.Avaliacoes {
-		if avaliacao.IDProduto == idAvaliacao {
+		if avaliacao.IDProduto == idProduto {
 			avaliacao.Comentarios = append(avaliacao.Comentarios, Comentario{
 				IDUsuario: idUsuario,
 				Texto:     texto,
@@ -304,7 +304,7 @@ func (pp *PerguntasProdutos) ServirModeracaoHTTP(w http.ResponseWriter, r *http.
 		var dados struct {
 			IDProduto string `json:"id_produto"`
 			IDUsuario string `json:"id_usuario"`
-			Acao      string `json:"acao"`
+			Acao      string `json:"acao"` // "aprovar" ou "remover"
 		}
 		if err := json.NewDecoder(r.Body).Decode(&dados); err != nil {
 			http.Error(w, "Corpo da requisição inválido", http.StatusBadRequest)
@@ -331,6 +331,28 @@ func main() {
 	var perguntas PerguntasProdutos
 
 	http.HandleFunc("/avaliacoes", avaliacoes.ServirHTTP)
+	http.HandleFunc("/avaliacoes/comentar", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
+			return
+		}
+		var dados struct {
+			IDProduto string `json:"id_produto"`
+			IDUsuario string `json:"id_usuario"`
+			Texto     string `json:"texto"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&dados); err != nil {
+			http.Error(w, "Corpo da requisição inválido", http.StatusBadRequest)
+			return
+		}
+		if err := avaliacoes.AdicionarComentario(dados.IDProduto, dados.IDUsuario, dados.Texto); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprintln(w, "Comentário adicionado")
+	})
+
 	http.HandleFunc("/perguntas/adicionar", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "Método não permitido", http.StatusMethodNotAllowed)
